@@ -15,12 +15,15 @@ using namespace std;
 using namespace  RooFit;
 //using namespace RooPlot;
 
+  TLorentzVector* matchReco;
+
 void myTree::Loop(int q=0)
 {
   if (fChain == 0) return;
-  Float_t  jpsi_pt;
-  Float_t  jpsi_eta;
-  Float_t  jpsi_phi;
+  Float_t jpsi_pt;
+  Float_t jpsi_eta;
+  Float_t jpsi_phi;
+  Float_t jpsi_rap;
   Float_t dr;
   Float_t dphi;
   Float_t dphimin;
@@ -29,19 +32,18 @@ void myTree::Loop(int q=0)
   Float_t z=100;
   int triggerIndex_PP =0;
   int k;
-  Double_t ptbins []={6, 9, 12, 15, 20, 30, 50};
+  Double_t ptbins []={6.5, 9, 12, 15, 20, 30, 50};
   Double_t etabins []={-2.4, -2, -1.6, -1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2, 1.6, 2, 2.4};
-  TLorentzVector matchjet;
 
   TH1F* zz= new TH1F ("z","z gen after", 15, 0, 1.5);
   TH1F* zmr= new TH1F ("zmr", "matched reco after", 15, 0, 1.5);
   TH1F* zmg= new TH1F ("zmg", "matched gen after", 15, 0, 1.5);
   TH1F* ptg= new TH1F ("ptg", "N_{gen} vs p_{T}; p_{T}; N_{total}", 6, ptbins);
   TH1F* ptgm= new TH1F ("ptgm", "N_{matched gen} vs p_{T}; p_{T}; N_{matched}", 6, ptbins);
-  TH1F* etagm= new TH1F ("etagm","N_{matched gen} vs #eta; #eta; N_{matched}",6, 0, 2.4);
-  TH1F* etag= new TH1F ("etag","N_{gen} vs #eta; #eta; N_{total}",6, 0, 2.4);
-  TH2F* ptetag= new TH2F ("ptetag", "N_{matched gen} vs p_{T} and #eta; #eta; p_{T}; N_{matched}", 12, etabins, 6, ptbins);
-  TH2F* ptetamg= new TH2F ("ptetamg", "N_{gen} vs p_{T} and #eta; #eta; p_{T}; N_{total}", 12, etabins, 6, ptbins);
+  TH1F* rapgm= new TH1F ("rapgm","N_{matched gen} vs #eta; #eta; N_{matched}",6, 0, 2.4);
+  TH1F* rapg= new TH1F ("rapg","N_{gen} vs #eta; #eta; N_{total}",6, 0, 2.4);
+  TH2F* ptrapg= new TH2F ("ptrapg", "N_{gen} vs p_{T} and y; y; p_{T}; N_{total}", 12, etabins, 6, ptbins);
+  TH2F* ptrapgm= new TH2F ("ptrapgm", "N_{matched gen} vs p_{T} and y; y; p_{T}; N_{matched}", 12, etabins, 6, ptbins);
   TH1F* opan= new TH1F ("opan", "opening angle between J/#psi and jet; angle; Events", 20, 0, 0.6);
 
 
@@ -82,26 +84,35 @@ void myTree::Loop(int q=0)
 	  if (ientry < 0) break;
 	  nb = fChain->GetEntry(jentry);   nbytes += nb;
 
-	  //if (Cut(ientry) < 0) continue;
-      
-	  if (HLT_HIL1DoubleMu0ForPPRef_v1)// && pPAprimaryVertexFilter)
-	    {
-	      for (int iQQ=0; iQQ<Gen_QQ_size; iQQ++) 
+
+	  for (int iQQ=0; iQQ<Gen_QQ_size; iQQ++)
 		{
 		  TLorentzVector *GenQQ4mom = (TLorentzVector*) Gen_QQ_4mom->At(iQQ);
 		  TLorentzVector *GenQQmupl4mom = (TLorentzVector*) Gen_QQ_mupl_4mom->At(iQQ);
 		  TLorentzVector *GenQQmumi4mom = (TLorentzVector*) Gen_QQ_mumi_4mom->At(iQQ);
 		  jpsi_pt = GenQQ4mom->Pt();
-		  jpsi_eta =GenQQ4mom->Eta();
-		  if (
-		      jpsi_pt > 6 &&
-		      (areGenMuonsInAcceptance2015(iQQ))
-		      //(isMatchedGenDiMuon(iQQ))		   
-		      )
+		  jpsi_rap = GenQQ4mom->Rapidity();
+
+		  if (jpsi_pt>6.5 && abs(jpsi_rap)<2.4)
 		    {
-		      genmass->setVal(GenQQ4mom->M());
-		      if (jpsi_eta>(-2.4) && jpsi_eta < 2.4) 
+		      ptg->Fill(jpsi_pt);
+		      rapg->Fill(jpsi_rap);
+		      ptrapg->Fill(jpsi_rap, jpsi_pt);
+
+		      if (
+			  (HLT_HIL1DoubleMu0ForPPRef_v1) 
+			  && (areGenMuonsInAcceptance2015(iQQ))
+			  && (isMatchedGenDiMuon(iQQ))
+			  )
 			{
+			  ptgm->Fill(matchReco->Pt());
+			  rapgm->Fill(matchReco->Rapidity());
+			  ptrapgm->Fill(matchReco->Rapidity(), matchReco->Pt());
+			  //ptgm->Fill(jpsi_pt);
+			  //rapgm->Fill(jpsi_rap);
+			  //ptrapgm->Fill(jpsi_rap, jpsi_pt);
+
+			  genmass->setVal(GenQQ4mom->M());			    
 			  drmin = 10000;
 			  for (Long64_t ijet=0; ijet<ngen; ijet++)
 			    {
@@ -117,64 +128,18 @@ void myTree::Loop(int q=0)
 				      drmin=dr;
 				      dphimin=dphi;
 				      deta=(jpsi_eta-geneta[ijet]);
-				      //if (drmin < 0.6 )
+				      //if (drmin < 0.5)
 				      z= jpsi_pt/genpt[ijet];
 				    }
 				}
 			    }
 			  genzed->setVal(z);
 			  genr->setVal(drmin);
-			  if (drmin != 10000)
-			    {
-			      ptg->Fill(jpsi_pt);
-			      zz->Fill(z);
-			      etag->Fill(abs(jpsi_eta));
-			      ptetag->Fill(jpsi_eta, jpsi_pt);
-			      if (isMatchedGenDiMuon(iQQ))
-				{
-				  ptgm->Fill(jpsi_pt);
-				  zmg->Fill(z);
-				  ptetamg->Fill(jpsi_eta, jpsi_pt);
-				  etagm->Fill(abs(jpsi_eta));
-				}
-			    }
 			}
 		    }
 		}
-	      gendata->add(*genset);
 
-	      TEfficiency* gptef = new TEfficiency("gptef", "reconstruction efficiency fct of pt", 6, ptbins);
-	      if(TEfficiency::CheckConsistency(*ptgm,*ptg))
-		gptef = new TEfficiency (*ptgm,*ptg);
-	      else 
-		cout<<endl<<"non consistent";
 
-	      TEfficiency* gzef = new TEfficiency("gzef", "reconstruction efficiency fct of z",10, 0, 10);
-	      if(TEfficiency::CheckConsistency(*zmg,*zz))
-		gzef = new TEfficiency (*zmg,*zz);
-	      else 
-		cout<<endl<<"non consistent";
-
-	      TEfficiency* getaef = new TEfficiency("getaef", "reconstruction efficiency fct of eta", 6, 0, 2.4);
-	      if(TEfficiency::CheckConsistency(*etagm,*etag))
-		getaef = new TEfficiency (*etagm,*etag);
-	      else 
-		cout<<endl<<"non consistent";
-
-	      TEfficiency* gptetaef = new TEfficiency("gptetaef", "reconstruction efficiency fct of pt and eta; eta; pt; eff", 12, etabins, 6, ptbins);
-	      if(TEfficiency::CheckConsistency(*ptetamg,*ptetag))
-		gptetaef = new TEfficiency (*ptetamg,*ptetag);
-	      else 
-		cout<<endl<<"non consistent";
-
-	      TFile ef ("npefficiencies.root", "RECREATE");
-	      gptef->Write();
-	      gzef->Write();
-	      gptetaef->Write();
-	      getaef->Write();
-	      //gptetaef= (TEfficiency*) ef.FindObjectAny("ptetag_clone");
-	      ef.Close();
-		
 
 	      for (int iQQ=0; iQQ<Reco_QQ_size; iQQ++) 
 		{
@@ -185,7 +150,7 @@ void myTree::Loop(int q=0)
 		  jpsi_pt = RecoQQ4mom->Pt();
 		  jpsi_eta = RecoQQ4mom->Eta();
 		  if (
-		      jpsi_pt > 6  &&
+		      jpsi_pt > 6.5  &&
 		      (areMuonsInAcceptance2015(iQQ))&&  // 2015 Global Muon Acceptance Cuts
 		      (passQualityCuts2015(iQQ)) &&  // 2015 Soft Global Muon Quality Cuts
 		      (isTriggerMatch(iQQ, triggerIndex_PP)) &&// if it matches the trigger 
@@ -217,17 +182,41 @@ void myTree::Loop(int q=0)
 			  zmr->Fill(z);
 			  zed->setVal(z);
 			  r->setVal(drmin);
-			  //weight->setVal(2);
-			  weight->setVal(1/(gptetaef->GetEfficiency(gptetaef->GetGlobalBin(jpsi_eta, jpsi_pt))));
+			  //weight->setVal(1/abs(3.096-RecoQQ4mom->M()));
+			  //weight->setVal(1/(gptrapef->GetEfficiency(gptrapef->GetGlobalBin(jpsi_rap, jpsi_pt))));
 			  if (drmin<0.4)
 			    opan->Fill(drmin);
 			}
 		    }
 		}
-	    }	    
-	  data->add(*set);
-	  unwdata->add(*unwset);
-	}
+	}	    
+      data->add(*set);
+      unwdata->add(*unwset);
+      gendata->add(*genset);
+      TEfficiency* gptef = new TEfficiency("gptef", "reconstruction efficiency fct of pt", 6, ptbins);
+      if(TEfficiency::CheckConsistency(*ptgm,*ptg))
+	gptef = new TEfficiency (*ptgm,*ptg);
+
+      TEfficiency* grapef = new TEfficiency("grapef", "reconstruction efficiency fct of rapidity", 6, 0, 2.4);
+      if(TEfficiency::CheckConsistency(*rapgm,*rapg))
+	grapef = new TEfficiency (*rapgm,*rapg);
+
+      TEfficiency* gptrapef = new TEfficiency("gptetaef", "reconstruction efficiency fct of pt and rapidity; y; pt; eff", 12, etabins, 6, ptbins);
+      if(TEfficiency::CheckConsistency(*ptrapgm, *ptrapg))
+	gptrapef = new TEfficiency (*ptrapgm, *ptrapg);
+
+      ptgm->Divide(ptg);
+
+      TFile ef ("npefficiencies.root", "RECREATE");
+      //gptef->Write();
+      //gptrapef->Write();
+      grapef->Write();
+      ptgm->Write("ratiopt");
+      //TFile ef ("allnpeff.root");
+      //gptetaef= (TEfficiency*) ef.FindObjectAny("ptetag_clone");
+      ef.Close();
+
+
 	
       TFile *datafile = TFile::Open("MCsample","RECREATE");
       datafile->cd();
@@ -445,7 +434,8 @@ Bool_t myTree::isMatchedGenDiMuon(int iGenDiMuon, double maxDeltaR =0.03)
 {
   TLorentzVector* GenMuonpl = (TLorentzVector*) Gen_QQ_mupl_4mom->At(iGenDiMuon);
   TLorentzVector* GenMuonmi = (TLorentzVector*) Gen_QQ_mumi_4mom->At(iGenDiMuon);
-  
+  TLorentzVector* GenMuon = (TLorentzVector*) Gen_QQ_4mom->At(iGenDiMuon);
+
   bool isMatched(false);
   int iRecoMuon(0);
   while ( !isMatched && (iRecoMuon < Reco_QQ_size) )
@@ -454,7 +444,12 @@ Bool_t myTree::isMatchedGenDiMuon(int iGenDiMuon, double maxDeltaR =0.03)
     TLorentzVector *RecoMuonmi = (TLorentzVector*)Reco_QQ_mumi_4mom->At(iRecoMuon);
     double dRpl = deltaR(GenMuonpl,RecoMuonpl);
     double dRmi = deltaR(GenMuonmi,RecoMuonmi);
-    if ( (dRpl < maxDeltaR) && (dRmi < maxDeltaR) && (areMuonsInAcceptance2015(iRecoMuon))&& (isTriggerMatch(iRecoMuon, 0))) isMatched = true;
+    if ( (dRpl < maxDeltaR) && (dRmi < maxDeltaR) && (areMuonsInAcceptance2015(iRecoMuon))&& (passQualityCuts2015(iRecoMuon)) && (isTriggerMatch(iRecoMuon, 0))) 
+      {
+	isMatched = true;
+	matchReco = (TLorentzVector*) Reco_QQ_4mom->At(iRecoMuon);
+	//cout <<endl<<matchReco->Pt()<<"  "<<GenMuon->Pt();
+      }
     iRecoMuon++;
   }
   
