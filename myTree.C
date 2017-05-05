@@ -39,11 +39,11 @@ void myTree::Loop(int q=0)
   TH1F* zmr= new TH1F ("zmr", "matched reco after", 15, 0, 1.5);
   TH1F* zmg= new TH1F ("zmg", "matched gen after", 15, 0, 1.5);
   TH1F* ptg= new TH1F ("ptg", "N_{gen} vs p_{T}; p_{T}; N_{total}", 6, ptbins);
-  TH1F* ptgm= new TH1F ("ptgm", "N_{matched gen} vs p_{T}; p_{T}; N_{matched}", 6, ptbins);
-  TH1F* rapgm= new TH1F ("rapgm","N_{matched gen} vs #eta; #eta; N_{matched}",6, 0, 2.4);
+  TH1F* ptr= new TH1F ("ptr", "N_{reco} vs p_{T}; p_{T}; N_{reco}", 6, ptbins);
+  TH1F* rapr= new TH1F ("rapr","N_{reco} vs #eta; #eta; N_{reco}",6, 0, 2.4);
   TH1F* rapg= new TH1F ("rapg","N_{gen} vs #eta; #eta; N_{total}",6, 0, 2.4);
   TH2F* ptrapg= new TH2F ("ptrapg", "N_{gen} vs p_{T} and y; y; p_{T}; N_{total}", 12, etabins, 6, ptbins);
-  TH2F* ptrapgm= new TH2F ("ptrapgm", "N_{matched gen} vs p_{T} and y; y; p_{T}; N_{matched}", 12, etabins, 6, ptbins);
+  TH2F* ptrapr= new TH2F ("ptrapr", "N_{reco} vs p_{T} and y; y; p_{T}; N_{reco}", 12, etabins, 6, ptbins);
   TH1F* opan= new TH1F ("opan", "opening angle between J/#psi and jet; angle; Events", 20, 0, 0.6);
 
 
@@ -99,43 +99,32 @@ void myTree::Loop(int q=0)
 		      rapg->Fill(jpsi_rap);
 		      ptrapg->Fill(jpsi_rap, jpsi_pt);
 
-		      if (
-			  (HLT_HIL1DoubleMu0ForPPRef_v1) 
-			  && (areGenMuonsInAcceptance2015(iQQ))
-			  && (isMatchedGenDiMuon(iQQ))
-			  )
-			{
-			  ptgm->Fill(matchReco->Pt());
-			  rapgm->Fill(matchReco->Rapidity());
-			  ptrapgm->Fill(matchReco->Rapidity(), matchReco->Pt());
-			  //ptgm->Fill(jpsi_pt);
-			  //rapgm->Fill(jpsi_rap);
-			  //ptrapgm->Fill(jpsi_rap, jpsi_pt);
 
-			  genmass->setVal(GenQQ4mom->M());			    
-			  drmin = 10000;
-			  for (Long64_t ijet=0; ijet<ngen; ijet++)
-			    {
+
+		      genmass->setVal(GenQQ4mom->M());			    
+		      drmin = 10000;
+		      for (Long64_t ijet=0; ijet<ngen; ijet++)
+			{
 	  
-			      if (geneta[ijet]>(-2.4) && geneta[ijet]<(2.4) && genpt[ijet]>=20)
+			  if (geneta[ijet]>(-2.4) && geneta[ijet]<(2.4) && genpt[ijet]>=20)
+			    {
+			      TLorentzVector v_jet;
+			      v_jet.SetPtEtaPhiM(genpt[ijet], geneta[ijet], genphi[ijet], genm[ijet]);
+			      dphi= GenQQ4mom->DeltaPhi(v_jet);
+			      dr = GenQQ4mom->DeltaR (v_jet);
+			      if (dr<=drmin)
 				{
-				  TLorentzVector v_jet;
-				  v_jet.SetPtEtaPhiM(genpt[ijet], geneta[ijet], genphi[ijet], genm[ijet]);
-				  dphi= GenQQ4mom->DeltaPhi(v_jet);
-				  dr = GenQQ4mom->DeltaR (v_jet);
-				  if (dr<=drmin)
-				    {
-				      drmin=dr;
-				      dphimin=dphi;
-				      deta=(jpsi_eta-geneta[ijet]);
-				      //if (drmin < 0.5)
-				      z= jpsi_pt/genpt[ijet];
-				    }
+				  drmin=dr;
+				  dphimin=dphi;
+				  deta=(jpsi_eta-geneta[ijet]);
+				  //if (drmin < 0.5)
+				  z= jpsi_pt/genpt[ijet];
 				}
 			    }
-			  genzed->setVal(z);
-			  genr->setVal(drmin);
 			}
+		      genzed->setVal(z);
+		      genr->setVal(drmin);
+			
 		    }
 		}
 
@@ -149,16 +138,21 @@ void myTree::Loop(int q=0)
 		  mass->setVal(RecoQQ4mom->M());
 		  jpsi_pt = RecoQQ4mom->Pt();
 		  jpsi_eta = RecoQQ4mom->Eta();
+		  jpsi_rap = RecoQQ4mom->Rapidity();
 		  if (
 		      jpsi_pt > 6.5  &&
 		      (areMuonsInAcceptance2015(iQQ))&&  // 2015 Global Muon Acceptance Cuts
 		      (passQualityCuts2015(iQQ)) &&  // 2015 Soft Global Muon Quality Cuts
-		      (isTriggerMatch(iQQ, triggerIndex_PP)) &&// if it matches the trigger 
-		      ( isMatchedRecoDiMuon(iQQ))
+		      (isTriggerMatch(iQQ, triggerIndex_PP)) //&&// if it matches the trigger 
+		      //( isMatchedRecoDiMuon(iQQ))
 		      )
 		    {
-		      if (Reco_QQ_sign[iQQ]==0 && jpsi_eta>(-2.4) && jpsi_eta < 2.4) 
+		      if (Reco_QQ_sign[iQQ]==0 && abs(jpsi_rap)<2.4) 
 			{
+			  ptr->Fill(jpsi_pt);
+			  rapr->Fill(jpsi_rap);
+			  ptrapr->Fill(jpsi_rap, jpsi_pt);
+
 			  drmin = 1000;
 			  for (Long64_t ijet=0; ijet<nref; ijet++)
 			    {
@@ -194,24 +188,26 @@ void myTree::Loop(int q=0)
       unwdata->add(*unwset);
       gendata->add(*genset);
       TEfficiency* gptef = new TEfficiency("gptef", "reconstruction efficiency fct of pt", 6, ptbins);
-      if(TEfficiency::CheckConsistency(*ptgm,*ptg))
-	gptef = new TEfficiency (*ptgm,*ptg);
+      if(TEfficiency::CheckConsistency(*ptr,*ptg))
+	gptef = new TEfficiency (*ptr,*ptg);
 
       TEfficiency* grapef = new TEfficiency("grapef", "reconstruction efficiency fct of rapidity", 6, 0, 2.4);
-      if(TEfficiency::CheckConsistency(*rapgm,*rapg))
-	grapef = new TEfficiency (*rapgm,*rapg);
+      if(TEfficiency::CheckConsistency(*rapr,*rapg))
+	grapef = new TEfficiency (*rapr,*rapg);
 
       TEfficiency* gptrapef = new TEfficiency("gptetaef", "reconstruction efficiency fct of pt and rapidity; y; pt; eff", 12, etabins, 6, ptbins);
-      if(TEfficiency::CheckConsistency(*ptrapgm, *ptrapg))
-	gptrapef = new TEfficiency (*ptrapgm, *ptrapg);
+      if(TEfficiency::CheckConsistency(*ptrapr, *ptrapg))
+	gptrapef = new TEfficiency (*ptrapr, *ptrapg);
 
-      ptgm->Divide(ptg);
+      ptr->Divide(ptg);
+      ptrapr->Divide(ptrapg);
 
       TFile ef ("npefficiencies.root", "RECREATE");
-      //gptef->Write();
-      //gptrapef->Write();
+      gptef->Write();
+      gptrapef->Write();
       grapef->Write();
-      ptgm->Write("ratiopt");
+      ptr->Write("ratiopt");
+      ptrapr->Write("ratioptrap");
       //TFile ef ("allnpeff.root");
       //gptetaef= (TEfficiency*) ef.FindObjectAny("ptetag_clone");
       ef.Close();
