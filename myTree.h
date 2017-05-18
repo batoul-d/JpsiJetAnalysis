@@ -5,11 +5,6 @@
 // found on file: /data_CMS/cms/mnguyen/jPsiJet/HiForestAOD.root
 //////////////////////////////////////////////////////////
 
-
-// /data_CMS/cms/mnguyen/jPsiJet/data/v6/merged_HiForestAOD.root
-
-// /data_CMS/cms/mnguyen/jPsiJet/mc/prompt/v6/merged_HiForestAOD.root
-
 #ifndef myTree_h
 #define myTree_h
 
@@ -31,6 +26,8 @@ public :
 // Fixed size dimensions of array or collections stored in the TTree if any.
 
 
+   bool          isMc;
+   bool          isPr;
 
    // Declaration of leaf types
    UInt_t          eventNb;
@@ -148,11 +145,11 @@ public :
 
 
    Int_t           Gen_QQ_size;
-   Int_t           Gen_QQ_type[2];   //[Gen_QQ_size]
+   Int_t           Gen_QQ_type[3];   //[Gen_QQ_size]
    TClonesArray    *Gen_QQ_4mom;
-   Int_t           Gen_QQ_momId[2];   //[Gen_QQ_size]
-   Float_t         Gen_QQ_ctau[2];   //[Gen_QQ_size]
-   Float_t         Gen_QQ_ctau3D[2];   //[Gen_QQ_size]
+   Int_t           Gen_QQ_momId[3];   //[Gen_QQ_size]
+   Float_t         Gen_QQ_ctau[3];   //[Gen_QQ_size]
+   Float_t         Gen_QQ_ctau3D[3];   //[Gen_QQ_size]
    TClonesArray    *Gen_QQ_mupl_4mom;
    TClonesArray    *Gen_QQ_mumi_4mom;
    Int_t           Gen_mu_size;
@@ -355,18 +352,18 @@ public :
    Float_t         signalHardSum[56];   //[nref]
    Int_t           subid[56];   //[nref]
    Int_t           ngen;
-   Int_t           genmatchindex[26];   //[ngen]
-   Float_t         genpt[26];   //[ngen]
-   Float_t         geneta[26];   //[ngen]
-   Float_t         geny[26];   //[ngen]
-   Float_t         gentau1[26];   //[ngen]
-   Float_t         gentau2[26];   //[ngen]
-   Float_t         gentau3[26];   //[ngen]
-   Float_t         genphi[26];   //[ngen]
-   Float_t         genm[26];   //[ngen]
-   Float_t         gendphijt[26];   //[ngen]
-   Float_t         gendrjt[26];   //[ngen]
-   Int_t           gensubid[26];   //[ngen]
+   Int_t           genmatchindex[28];   //[ngen]
+   Float_t         genpt[28];   //[ngen]
+   Float_t         geneta[28];   //[ngen]
+   Float_t         geny[28];   //[ngen]
+   Float_t         gentau1[28];   //[ngen]
+   Float_t         gentau2[28];   //[ngen]
+   Float_t         gentau3[28];   //[ngen]
+   Float_t         genphi[28];   //[ngen]
+   Float_t         genm[28];   //[ngen]
+   Float_t         gendphijt[28];   //[ngen]
+   Float_t         gendrjt[28];   //[ngen]
+   Int_t           gensubid[28];   //[ngen]
 
    // List of branches
    TBranch        *b_eventNb;   //!
@@ -501,7 +498,6 @@ public :
    //List of branshes from HltTree.h
 
    TBranch        *b_HLT_HIL1DoubleMu0_v1;   //!
-
    TBranch        *b_HLT_HIL1DoubleMu0ForPPRef_v1;   //!
 
 
@@ -700,45 +696,76 @@ public :
    TBranch        *b_gendrjt;   //!
    TBranch        *b_gensubid;   //!
 
-     myTree(const char * input_file = "/data_CMS/cms/mnguyen/jPsiJet/mc/nonprompt/v6/merged_HiForestAOD.root");
-     //myTree(const char * input_file = "/data_CMS/cms/mnguyen/jPsiJet/data/v6/merged_HiForestAOD.root");
+   myTree(Bool_t mc = false, Bool_t pr = true);
 
    virtual ~myTree();
    virtual Int_t    Cut(Long64_t entry);
    virtual Int_t    GetEntry(Long64_t entry);
    virtual Long64_t LoadTree(Long64_t entry);
    virtual void     Init(TTree *tree);
-   virtual void     Loop(int q=0);
+   virtual void     Loop();
    virtual Bool_t   Notify();
    virtual void     Show(Long64_t entry = -1);
 
+   virtual void     EffCalc();
+   virtual void     Plot();
 
-   virtual Bool_t isTriggerMatch (Int_t iRecoQQ, Int_t TriggerBit);
-   virtual Bool_t isGlobalMuonInAccept2015 (TLorentzVector* Muon);
-   virtual Bool_t areMuonsInAcceptance2015 (Int_t iRecoQQ);
-   virtual Bool_t areGenMuonsInAcceptance2015 (Int_t iGenQQ);
-   virtual Bool_t passQualityCuts2015 (Int_t iRecoQQ);
-   virtual Bool_t isMatchedRecoDiMuon (int iRecoDiMuon, double maxDeltaR=0.03);
-   virtual Bool_t isMatchedGenDiMuon (int iGenDiMuon, double maxDeltaR=0.03);
+
+   virtual Bool_t   isTriggerMatch (Int_t iRecoQQ, Int_t TriggerBit);
+   virtual Bool_t   isGlobalMuonInAccept2015 (TLorentzVector* Muon);
+   virtual Bool_t   areMuonsInAcceptance2015 (Int_t iRecoQQ);
+   virtual Bool_t   areGenMuonsInAcceptance2015 (Int_t iGenQQ);
+   virtual Bool_t   passQualityCuts2015 (Int_t iRecoQQ);
+   virtual Bool_t   isMatchedRecoDiMuon (int iRecoDiMuon, double maxDeltaR=0.03);
+   virtual Bool_t   isMatchedGenDiMuon (int iGenDiMuon, double maxDeltaR=0.03);
    virtual Double_t deltaR (TLorentzVector* GenMuon, TLorentzVector* RecoMuon);
 };
 
 #endif
 
 #ifdef myTree_cxx
-myTree::myTree(const char * input_file) : fChain(0) 
+myTree::myTree(Bool_t mc = false , Bool_t pr = true) : fChain(0)
 {
-// if parameter tree is not specified (or zero), connect the file
-// used to generate this class and read the Tree.
+  //const char* input_file;
   TFile* f(0x0);
-if (!strcmp(input_file,"")) 
-  {
-    f = (TFile*)gROOT->GetListOfFiles()->FindObject("/data_CMS/cms/mnguyen/jPsiJet/mc/nonprompt/v6/merged_HiForestAOD.root");
-    // f = (TFile*)gROOT->GetListOfFiles()->FindObject("/data_CMS/cms/mnguyen/jPsiJet/data/v6/merged_HiForestAOD.root");
+  isMc=mc;
+  isPr=pr;
+    if (isMc)
+      {
+	if (isPr)
+	  f = (TFile*)gROOT->GetListOfFiles()->FindObject("/data_CMS/cms/mnguyen/jPsiJet/mc/prompt/v6_ext/merged_HiForestAOD.root");
+	else
+	  f= (TFile*)gROOT->GetListOfFiles()->FindObject("/data_CMS/cms/mnguyen/jPsiJet/mc/nonprompt/v6_ext/merged_HiForestAOD.root");
+      }
+    else 
+  f = (TFile*)gROOT->GetListOfFiles()->FindObject("/data_CMS/cms/mnguyen/jPsiJet/data/v6/merged_HiForestAOD.root");
 
- }
-      if (!f || !f->IsOpen()) {
-         f = new TFile(input_file);
+    if (!f || !f->IsOpen()) 
+      {
+	if (isMc)
+	  {
+	    if (isPr)
+	      f = new TFile("/data_CMS/cms/mnguyen/jPsiJet/mc/prompt/v6_ext/merged_HiForestAOD.root");
+	    else
+	      f= new TFile("/data_CMS/cms/mnguyen/jPsiJet/mc/nonprompt/v6_ext/merged_HiForestAOD.root");
+	  }
+	else 
+	  f = new TFile("/data_CMS/cms/mnguyen/jPsiJet/data/v6/merged_HiForestAOD.root");
+      }
+    if(isMc)
+      {
+	if(isPr)
+	  cout<<endl<<"-----prompt MC-----"<<endl;
+	else
+	  cout<<endl<<"-----non prompt MC-----"<<endl;
+      }
+    else
+      {
+	if (isPr)
+	  cout<<endl<<"-----data with pr corrections-----"<<endl;
+	else
+	  cout<<endl<<"-----data with nonpr corrections-----"<<endl;
+
       }
       TTree * tree (0x0);
       TTree *hitree (0x0);
@@ -775,7 +802,7 @@ if (!strcmp(input_file,""))
       tree -> AddFriend(hlttree1);
       tree ->AddFriend(tr);
 
-   Init(tree);
+      Init(tree);
 }
 
 myTree::~myTree()
@@ -824,6 +851,7 @@ void myTree::Init(TTree *tree)
    Gen_QQ_mupl_4mom = 0;
    Gen_QQ_mumi_4mom = 0;
    Gen_mu_4mom = 0;
+
    // Set branch addresses and branch pointers
    if (!tree) return;
    fChain = tree;
@@ -1119,7 +1147,8 @@ void myTree::Init(TTree *tree)
 
 
    ////// gen branches
-	
+       if (isMc)
+	 {	
 	   fChain->SetBranchAddress("Gen_QQ_size", &Gen_QQ_size, &b_Gen_QQ_size);
 	   fChain->SetBranchAddress("Gen_QQ_type", Gen_QQ_type, &b_Gen_QQ_type);
 	   fChain->SetBranchAddress("Gen_QQ_4mom", &Gen_QQ_4mom, &b_Gen_QQ_4mom);
@@ -1186,7 +1215,7 @@ void myTree::Init(TTree *tree)
 	   fChain->SetBranchAddress("ttbar_w", &ttbar_w, &b_ttbar_w);
 	   fChain->SetBranchAddress("npus", &npus, &b_npus);
 	   fChain->SetBranchAddress("tnpus", &tnpus, &b_tnpus);
-	 
+	 }
 
    Notify();
 }
