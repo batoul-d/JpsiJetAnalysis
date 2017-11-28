@@ -11,6 +11,7 @@
 #include "RooNumIntConfig.h"
 #include "RooPlotable.h"
 #include <TUnfold.h>
+#include <TLorentzVector.h>
 
 using namespace std;
 using namespace  RooFit;
@@ -18,6 +19,12 @@ using namespace  RooFit;
 
 TLorentzVector* matchReco;
 TLorentzVector* matchGen;
+int nj=0;
+int nt=0;
+int np=0;
+int nn=0;
+int ntp=0;
+int ntn=0;
 Float_t jpsi_m;
 Float_t jpsi_pt;
 Float_t jpsi_eta;
@@ -33,8 +40,9 @@ int triggerIndex_PP =0;
 int k;
 Float_t weight;
 Double_t ptbins []={6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 24, 27, 30, 35, 40, 45, 50};
-Double_t etabins []={-2.4, -1.6, -0.8,  0, 0.8, 1.6,  2.4};
-
+int nptbins = ((sizeof(ptbins)/sizeof(double))-1);
+Double_t etabins []={-2.4, -1.6, -0.8, 0, 0.8, 1.6, 2.4};
+int netabins = ((sizeof(etabins)/sizeof(double))-1);
 RooRealVar* mass = new RooRealVar("Mass","#mu#mu mass", 2.6, 3.4, "GeV/c^{2}");
 RooRealVar* genmass = new RooRealVar("genMass","#mu#mu mass", 2.6, 3.4, "GeV/c^{2}");
 RooRealVar* ctau = new RooRealVar("ctau","c_{#tau}", -2.0, 5.0, "mm");
@@ -63,19 +71,21 @@ RooDataSet* nprdata = new RooDataSet ("nprdata", "data for non prompt J/#psi", *
 
 void myTree::EffCalc()
 {
+  TF1* lcut = new TF1 ("lcut", "0.013+0.25/x", 6.5, 50);
   if (isMc)
     {
-      TH1F* ptg= new TH1F ("ptg", "N_{gen} vs p_{T}; p_{T}; N_{total}", 25, ptbins);
-      TH1F* ptr= new TH1F ("ptr", "N_{reco} vs p_{T}; p_{T}; N_{reco}", 25, ptbins);
-      TH1F* rapr= new TH1F ("rapr","N_{reco} vs #eta; #eta; N_{reco}", 6, etabins);
-      TH1F* rapg= new TH1F ("rapg","N_{gen} vs #eta; #eta; N_{total}", 6, etabins);
-      TH2F* ptrapg= new TH2F ("ptrapg", "N_{gen} vs p_{T} and y; y; p_{T}; N_{total}", 6, etabins, 25, ptbins);
-      TH2F* ptrapr= new TH2F ("ptrapr", "N_{reco} vs p_{T} and y; y; p_{T}; N_{reco}", 6, etabins, 25, ptbins);
+      TH1F* ptg= new TH1F ("ptg", "N_{gen} vs p_{T}; p_{T}; N_{total}", nptbins, ptbins);
+      TH1F* ptr= new TH1F ("ptr", "N_{reco} vs p_{T}; p_{T}; N_{reco}", nptbins, ptbins);
+      TH1F* rapr= new TH1F ("rapr","N_{reco} vs #eta; #eta; N_{reco}", netabins, etabins);
+      TH1F* rapg= new TH1F ("rapg","N_{gen} vs #eta; #eta; N_{total}", netabins, etabins);
+      TH2F* ptrapg= new TH2F ("ptrapg", "N_{gen} vs p_{T} and y; y; p_{T}; N_{total}", netabins, etabins, nptbins, ptbins);
+      TH2F* ptrapr= new TH2F ("ptrapr", "N_{reco} vs p_{T} and y; y; p_{T}; N_{reco}", netabins, etabins, nptbins, ptbins);
 
       Long64_t nentries =fChain->GetEntries();
       Long64_t nbytes = 0, nb = 0;
       for (Long64_t jentry=0; jentry<nentries;jentry++) 
 	{
+	  if (jentry%1000000==0) cout<<"[INFO] "<<jentry<<"/"<<nentries<<endl;
 	  Long64_t ientry = LoadTree(jentry);
 	  if (ientry < 0) break;
 	  nb = fChain->GetEntry(jentry);   nbytes += nb;
@@ -85,7 +95,7 @@ void myTree::EffCalc()
 	      jpsi_m=GenQQ4mom->M();
 	      jpsi_pt = GenQQ4mom->Pt();
 	      jpsi_rap = GenQQ4mom->Rapidity();
-	      if (jpsi_pt>6.5 && abs(jpsi_rap)<2.4 && jpsi_m>2.6 && jpsi_m<3.5)
+	      if (jpsi_pt>3 && abs(jpsi_rap)<2.4 && jpsi_m>2.6 && jpsi_m<3.5)
 		{
 		  ptg->Fill(jpsi_pt);
 		  rapg->Fill(jpsi_rap);
@@ -102,32 +112,36 @@ void myTree::EffCalc()
 		  jpsi_rap = RecoQQ4mom->Rapidity();
 		  jpsi_m=RecoQQ4mom->M();
 		  if (
-		      jpsi_pt > 6.5  &&
+		      jpsi_pt > 3  &&
 		      (areMuonsInAcceptance2015(iQQ))&&  // 2015 Global Muon Acceptance Cuts
 		      (passQualityCuts2015(iQQ)) &&  // 2015 Soft Global Muon Quality Cuts
-		      (isTriggerMatch(iQQ, triggerIndex_PP)) //&& if it matches the trigger 
-		      //(isMatchedRecoDiMuon(iQQ))
+		      (isTriggerMatch(iQQ, triggerIndex_PP)) && // if it matches the trigger 
+		      (isMatchedRecoDiMuon(iQQ))
 		      )
 		    {
 		      if (Reco_QQ_sign[iQQ]==0 && abs(jpsi_rap)<2.4 && jpsi_m>2.6 && jpsi_m<3.5) 
-			{			    
-			  ptr->Fill(jpsi_pt);
-			  rapr->Fill(jpsi_rap);
-			  ptrapr->Fill(jpsi_rap, jpsi_pt);
+			{
+			  if ((isPr && Reco_QQ_ctau[iQQ] < lcut->Eval(jpsi_pt))
+			      || (!isPr && Reco_QQ_ctau[iQQ] > lcut->Eval(jpsi_pt)))			  
+			    {  
+			      ptr->Fill(jpsi_pt);
+			      rapr->Fill(jpsi_rap);
+			      ptrapr->Fill(jpsi_rap, jpsi_pt);
+			    }
 			}
 		    }
 		}
 	    }
 	}
-      TEfficiency* gptef = new TEfficiency("gptef", "reconstruction efficiency fct of pt", 25, ptbins);
+      TEfficiency* gptef = new TEfficiency("gptef", "reconstruction efficiency fct of pt", nptbins, ptbins);
       if(TEfficiency::CheckConsistency(*ptr,*ptg))
       gptef = new TEfficiency (*ptr,*ptg);
 
-      TEfficiency* grapef = new TEfficiency("grapef", "reconstruction efficiency fct of rapidity", 6, etabins);
+      TEfficiency* grapef = new TEfficiency("grapef", "reconstruction efficiency fct of rapidity", netabins, etabins);
       if(TEfficiency::CheckConsistency(*rapr,*rapg))
       grapef = new TEfficiency (*rapr,*rapg);
 
-      TEfficiency* gptrapef = new TEfficiency("gptetaef", "reconstruction efficiency fct of pt and rapidity; y; pt; eff", 6, etabins, 25, ptbins);
+      TEfficiency* gptrapef = new TEfficiency("gptetaef", "reconstruction efficiency fct of pt and rapidity; y; pt; eff", netabins, etabins, nptbins, ptbins);
       if(TEfficiency::CheckConsistency(*ptrapr, *ptrapg))
       gptrapef = new TEfficiency (*ptrapr, *ptrapg);
 
@@ -219,6 +233,14 @@ void myTree::ClosureTest()
 
 void myTree::Loop()
 {
+  gStyle->SetOptStat(0);
+  TCanvas *c1 = new TCanvas ("c1", "", 1000, 800);
+  TH1F* tot = new TH1F ("tot", ";p_{t}(#mu#mu)(GeV/c);Events", 25, ptbins);
+  TH1F* jpjt = new TH1F ("jpjt", ";p_{t}(#mu#mu/jet)(GeV/c);Events", 25, ptbins);
+  TH1F* ptot = new TH1F ("ptot", ";p_{t}(pr #mu#mu)(GeV/c);Events", 25, ptbins);
+  TH1F* ntot = new TH1F ("ntot", ";p_{t}(npr #mu#mu)(GeV/c);Events", 25, ptbins);
+  TH1F* pjpjt = new TH1F ("pjpjt", ";p_{t}(pr #mu#mu/jet)(GeV/c);Events", 25, ptbins);
+  TH1F* njpjt = new TH1F ("njpjt", ";p_{t}(npr #mu#mu/jet)(GeV/c);Events", 25, ptbins);
   TF1* lcut = new TF1 ("lcut", "0.013+0.25/x", 6.5, 50);
   if (fChain == 0) return;
   //genzed->setBins(10);
@@ -313,26 +335,33 @@ void myTree::Loop()
 		    {
 		      if (Reco_QQ_sign[iQQ]==0 && abs(jpsi_rap)<2.4 && jpsi_m>2.6 && jpsi_m<3.5) 
 			{
+			  nt++;
+			  tot->Fill(jpsi_pt, (1.0/(eff->GetEfficiency(eff->FindFixBin(jpsi_rap, jpsi_pt)))));
 			  for (Long64_t ijet=0; ijet<nref; ijet++)
 			    {
-	  
-			      if (abs(jty[ijet])<2.4 && jtpt[ijet]>20)
+			      if ((isPr && Reco_QQ_ctau[iQQ] < lcut->Eval(jpsi_pt))
+			      || (!isPr && Reco_QQ_ctau[iQQ] > lcut->Eval(jpsi_pt)))
 				{
-				  TLorentzVector v_jet;
-				  v_jet.SetPtEtaPhiM(jtpt[ijet], jteta[ijet], jtphi[ijet], jtm[ijet]);
-				  dphi= RecoQQ4mom->DeltaPhi(v_jet);
-				  dr = RecoQQ4mom->DeltaR (v_jet);
-				  if (dr<=drmin)
+				  if (abs(jty[ijet])<2.4 && jtpt[ijet]>20)
 				    {
-				      drmin=dr;
-				      dphimin=dphi;
-				      deta=(jpsi_eta-jteta[ijet]);
-				      z= jpsi_pt/jtpt[ijet];
+				      TLorentzVector v_jet;
+				      v_jet.SetPtEtaPhiM(jtpt[ijet], jteta[ijet], jtphi[ijet], jtm[ijet]);
+				      dphi= RecoQQ4mom->DeltaPhi(v_jet);
+				      dr = RecoQQ4mom->DeltaR (v_jet);
+				      if (dr<=drmin)
+					{
+					  drmin=dr;
+					  dphimin=dphi;
+					  deta=(jpsi_eta-jteta[ijet]);
+					  z= jpsi_pt/jtpt[ijet];
+					}
 				    }
 				}
 			    }
 			  if (drmin<0.5)
 			    {
+			      nj++;
+			      jpjt->Fill(jpsi_pt, (1.0/(eff->GetEfficiency(eff->FindFixBin(jpsi_rap, jpsi_pt)))));
 			      mass->setVal(jpsi_m);
 			      pt->setVal(jpsi_pt);
 			      rap->setVal(jpsi_rap);
@@ -351,6 +380,68 @@ void myTree::Loop()
 		}
 	    }
 	}
+      cout<<"[INFO} N_{#mu#mu/Jets} = "<<nj<<endl<<"[INFO] N_{total} = "<<nt<<endl;
+      for (int ibin=0; ibin <25; ibin++)
+	{
+	  tot->SetBinContent(ibin, ((tot->GetBinContent(ibin)*1.0)/tot->GetBinWidth(ibin)));
+	  jpjt->SetBinContent(ibin, ((jpjt->GetBinContent(ibin)*1.0)/jpjt->GetBinWidth(ibin)));
+	}
+      gSystem->cd("ptdist");
+      c1->cd();
+      tot->SetMarkerColor(6);
+      tot->SetMarkerStyle(33);
+      jpjt->SetMarkerColor(kBlue);
+      jpjt->SetMarkerStyle(33);
+
+      TLegend* l1 = new TLegend (0.6, 0.6, 0.8, 0.7);
+      l1->AddEntry(tot, "N_{#mu#mu tot}", "lep");
+      l1->AddEntry(jpjt, "N_{#mu#mu in jets}", "lep");
+      l1->SetBorderSize(0);
+
+      TPaveText* tbox = new TPaveText(0.6,0.4,0.8,0.5, "BRNDC");
+      tbox->AddText(Form("N_{#mu#mu tot} = %f", tot->GetEntries()));
+      tbox->AddText(Form("N_{#mu#mu in jets} = %f", jpjt->GetEntries()));
+      tbox->AddText(Form("N_{in jets}/N_{tot} = %f ", (nj*1.0)/nt));
+      tbox->SetBorderSize(0);
+      tbox->SetFillColor(0);
+
+      tot->Draw();
+      if (isPr)
+	{
+	  c1->SaveAs("prMcNtot.png");
+	  c1->SaveAs("prMcNtot.C");
+	}
+      else
+	{
+	  c1->SaveAs("nprMcNtot.png");
+	  c1->SaveAs("nprMcNtot.C");
+	}
+      jpjt->Draw();
+      if (isPr)
+	{
+	  c1->SaveAs("prMcNjet.png");
+	  c1->SaveAs("prMcNjet.C");
+	}
+      else
+	{
+	  c1->SaveAs("nprMcNjet.png");
+	  c1->SaveAs("nprMcNjet.C");
+	}
+      tot->Draw();
+      jpjt->Draw("same");
+      l1->Draw("same");
+      tbox->Draw("same");
+      if (isPr)
+	{
+	  c1->SaveAs("prMc.png");
+	  c1->SaveAs("prMc.C");
+	}
+      else
+	{
+	  c1->SaveAs("nprMc.png");
+	  c1->SaveAs("nprMc.C");
+	}
+      gSystem->cd("..");
     }
   else
     {
@@ -380,6 +471,18 @@ void myTree::Loop()
 		    {
 		      if (Reco_QQ_sign[iQQ]==0 && abs(jpsi_rap)<2.4 && jpsi_m>2.6 && jpsi_m<3.5) 
 			{
+			  nt++;
+			  tot->Fill(jpsi_pt, (1.0/eff->GetEfficiency(eff->FindFixBin(jpsi_rap, jpsi_pt))));
+			  if(Reco_QQ_ctau[iQQ] < lcut->Eval(jpsi_pt))
+			    {
+			      ntp++;
+			      ptot->Fill(jpsi_pt, (1.0/preff->GetEfficiency(eff->FindFixBin(jpsi_rap, jpsi_pt))));
+			    }
+			  else
+			    {
+			      ntn++;
+			      ntot->Fill(jpsi_pt, (1.0/npreff->GetEfficiency(eff->FindFixBin(jpsi_rap, jpsi_pt))));
+			    }
 			  for (Long64_t ijet=0; ijet<nref; ijet++)
 			    {
 	  
@@ -400,6 +503,8 @@ void myTree::Loop()
 			    }
 			  if (drmin<0.5)
 			    {
+			      nj++;
+			      jpjt->Fill(jpsi_pt, (1.0/eff->GetEfficiency(eff->FindFixBin(jpsi_rap, jpsi_pt))));
 			      mass->setVal(jpsi_m);
 			      pt->setVal(jpsi_pt);
 			      rap->setVal(jpsi_rap);
@@ -416,6 +521,8 @@ void myTree::Loop()
 			      unwdata->add(*unwset);
 			      if(Reco_QQ_ctau[iQQ] < lcut->Eval(jpsi_pt))
 				{
+				  np++;
+				  pjpjt->Fill(jpsi_pt, (1.0/preff->GetEfficiency(eff->FindFixBin(jpsi_rap, jpsi_pt))));
 				  weight=preff->GetEfficiency(preff->FindFixBin(jpsi_rap, jpsi_pt));
 				  if (weight==0)
 				    weight=1;
@@ -424,6 +531,8 @@ void myTree::Loop()
 				}
 			      else
 				{
+				  nn++;
+				  njpjt->Fill(jpsi_pt, (1.0/npreff->GetEfficiency(eff->FindFixBin(jpsi_rap, jpsi_pt))));
 				  weight=npreff->GetEfficiency(npreff->FindFixBin(jpsi_rap, jpsi_pt));
 				  if (weight==0)
 				    weight=1;
@@ -436,6 +545,111 @@ void myTree::Loop()
 		}
 	    }
 	}
+      cout<<"[INFO} N_{#mu#mu/Jets} = "<<nj<<"   N_{pr/Jets} = "<<np<<"   N_{npr/Jets} = "<<nn<<endl<<"[INFO] N_{total} = "<<nt<<"   N_{pr} = "<<ntp<<"   N_{npr} = "<<ntn<<endl;
+
+      for (int ibin=0; ibin <25; ibin++)
+	{
+	  tot->SetBinContent(ibin, ((tot->GetBinContent(ibin)*1.0)/tot->GetBinWidth(ibin)));
+	  jpjt->SetBinContent(ibin, ((jpjt->GetBinContent(ibin)*1.0)/jpjt->GetBinWidth(ibin)));
+	  ptot->SetBinContent(ibin, ((ptot->GetBinContent(ibin)*1.0)/ptot->GetBinWidth(ibin)));
+	  pjpjt->SetBinContent(ibin, ((pjpjt->GetBinContent(ibin)*1.0)/pjpjt->GetBinWidth(ibin)));
+	  ntot->SetBinContent(ibin, ((ntot->GetBinContent(ibin)*1.0)/ntot->GetBinWidth(ibin)));
+	  njpjt->SetBinContent(ibin, ((njpjt->GetBinContent(ibin)*1.0)/njpjt->GetBinWidth(ibin)));
+	}
+
+      gSystem->cd("ptdist");
+      c1->cd();
+      tot->SetMarkerColor(6);
+      tot->SetMarkerStyle(33);
+      jpjt->SetMarkerColor(kBlue);
+      jpjt->SetMarkerStyle(33);
+
+      ptot->SetMarkerColor(6);
+      ptot->SetMarkerStyle(33);
+      pjpjt->SetMarkerColor(kBlue);
+      pjpjt->SetMarkerStyle(33);
+
+      ntot->SetMarkerColor(6);
+      ntot->SetMarkerStyle(33);
+      njpjt->SetMarkerColor(kBlue);
+      njpjt->SetMarkerStyle(33);
+
+      TLegend* l1 = new TLegend (0.6, 0.6, 0.8, 0.7);
+      l1->AddEntry(tot, "N_{#mu#mu tot}", "lep");
+      l1->AddEntry(jpjt, "N_{#mu#mu in jets}", "lep");
+      l1->SetBorderSize(0);
+
+      TLegend* l2 = new TLegend (0.6, 0.6, 0.8, 0.7);
+      l2->AddEntry(ptot, "N_{pr#mu#mu tot}", "lep");
+      l2->AddEntry(pjpjt, "N_{pr#mu#mu in jets}", "lep");
+      l2->SetBorderSize(0);
+
+      TLegend* l3 = new TLegend (0.6, 0.6, 0.8, 0.7);
+      l3->AddEntry(ntot, "N_{npr#mu#mu tot}", "lep");
+      l3->AddEntry(njpjt, "N_{npr#mu#mu in jets}", "lep");
+      l3->SetBorderSize(0);
+
+      TPaveText* tbox = new TPaveText(0.6,0.4,0.8,0.5, "BRNDC");
+      tbox->AddText(Form("N_{#mu#mu tot} = %f", tot->GetEntries()));
+      tbox->AddText(Form("N_{#mu#mu in jets} = %f", jpjt->GetEntries()));
+      tbox->AddText(Form("N_{in jets}/N_{tot} = %f ", jpjt->GetEntries()*1.0/tot->GetEntries()));
+      tbox->SetBorderSize(0);
+      tbox->SetFillColor(0);
+
+      TPaveText* tbox1 = new TPaveText(0.6,0.4,0.8,0.5, "BRNDC");
+      tbox1->AddText(Form("N_{pr#mu#mu tot} = %f", ptot->GetEntries()));
+      tbox1->AddText(Form("N_{pr#mu#mu in jets} = %f", pjpjt->GetEntries()));
+      tbox1->AddText(Form("N_{in jets}/N_{tot} = %f ", pjpjt->GetEntries()*1.0/ptot->GetEntries()));
+      tbox1->SetBorderSize(0);
+      tbox1->SetFillColor(0);
+
+      TPaveText* tbox2 = new TPaveText(0.6,0.4,0.8,0.5, "BRNDC");
+      tbox2->AddText(Form("N_{npr#mu#mu tot} = %f", ntot->GetEntries()));
+      tbox2->AddText(Form("N_{npr#mu#mu in jets} = %f", njpjt->GetEntries()));
+      tbox2->AddText(Form("N_{in jets}/N_{tot} = %f ", (njpjt->GetEntries()*1.0)/ntot->GetEntries()));
+      tbox2->SetBorderSize(0);
+      tbox2->SetFillColor(0);
+
+      tot->Draw();
+      c1->SaveAs("dataTot.png");
+      c1->SaveAs("dataTot.C");
+      jpjt->Draw();
+      c1->SaveAs("dataJet.png");
+      c1->SaveAs("dataJet.C");
+      tot->Draw();
+      jpjt->Draw("same");
+      l1->Draw("same");
+      tbox->Draw("same");
+      c1->SaveAs("data.png");
+      c1->SaveAs("data.C");
+
+      ptot->Draw();
+      c1->SaveAs("prdataTot.png");
+      c1->SaveAs("prdataTot.C");
+      pjpjt->Draw();
+      c1->SaveAs("prdataJet.png");
+      c1->SaveAs("prdataJet.C");
+      ptot->Draw();
+      pjpjt->Draw("same");
+      l2->Draw("same");
+      tbox1->Draw("same");
+      c1->SaveAs("prdata.png");
+      c1->SaveAs("prdata.C");
+
+      ntot->Draw();
+      c1->SaveAs("nprdataTot.png");
+      c1->SaveAs("nprdataTot.C");
+      njpjt->Draw();
+      c1->SaveAs("nprdataJet.png");
+      c1->SaveAs("nprdataJet.C");
+      ntot->Draw();
+      njpjt->Draw("same");
+      l3->Draw("same");
+      tbox2->Draw("same");
+      c1->SaveAs("nprdata.png");
+      c1->SaveAs("nprdata.C");
+
+      gSystem->cd("..");
     }	    
   TFile *datafile (0x0);
   if (isMc)
@@ -508,7 +722,9 @@ void myTree::Plot()
   rap->setBins(12);
   gen_rap->setBins(12);
   pt->setBins(19);
-  gen_pt->setBins(19);	
+  gen_pt->setBins(19);
+  r->setMax(2);	
+  //r->setBins(10);
   RooDataSet* d = (RooDataSet*) data->reduce("Mass>2.6 && Mass<3.5 && r<0.5");
   RooDataSet* unwd = (RooDataSet*) unwdata->reduce("Mass>2.6 && Mass<3.5 && r<0.5");
   RooDataSet* gend = (RooDataSet*) gendata->reduce("genMass>2.6 && genMass<3.5 && genr<0.5");
@@ -565,6 +781,7 @@ void myTree::Plot()
 
   d->plotOn(mframe,DataError(RooAbsData::SumW2));
   d->plotOn(rframe);
+  //rframe->Draw();
   d->plotOn(ptframe, DataError(RooAbsData::SumW2));
   d->plotOn(rapframe, DataError(RooAbsData::SumW2));
 
@@ -668,14 +885,29 @@ void myTree::Plot()
 	      if (i==3)
 		{
 		  w->var("c0")->setVal(0.5);
+		  w->var("c0")->setConstant(false);
 		  w->var("c0")->setRange(-3, 3);
 		  w->var("c1")->setVal(0.2);
+		  w->var("c1")->setConstant(false);
 		  w->var("c1")->setRange(-3, 3);
-		  w->var("fs")->setVal(6000);
+		  w->var("fs")->setVal(15000);
+		  w->var("fs")->setConstant(false);
 		  w->var("fb")->setVal(1000);
-		  w->var("fcb")->setVal(0.7);
-		  w->var("fcb")->setMin(0.5);
+		  w->var("fb")->setConstant(false);
+		  w->var("fcb")->setVal(0.8);
+		  w->var("fcb")->setConstant(false);
+		  w->var("fcb")->setMin(0.3);
+		  //w->var("sigma")->setRange(0.0, 0.05);
+		  //w->var("sigma1")->setRange(0.01, 0.2);
+		  //w->var("c0")->setRange(-1, 1);
+		  //w->var("c1")->setRange(-1, 3);
+		  //w->var("fs")->setMax(50000);
+		  //w->var("fcb")->setRange(0.05, 0.6);
 		}
+
+	      //if  (i ==6)
+	      //{
+	      //}
 	  w->data("prdata")->plotOn(mzframe, DataError(RooAbsData::SumW2));
 	  w->pdf("model")->fitTo(*w->data("prdata"),  Extended(!isMc), SumW2Error(kTRUE));
 	  //w->pdf("model")->plotOn(mzframe);
@@ -683,6 +915,7 @@ void myTree::Plot()
 	  w->pdf("model")->plotOn(mzframe, Name("background"), Components(RooArgSet(bkg)),DrawOption("F"), FillColor(kGray));
 	  w->pdf("model")->plotOn(mzframe, Name("signal"), Components(RooArgSet(masspeak)), LineStyle(kDashed));
 	  w->pdf("model")->plotOn(mzframe, Name("total"), LineColor(kRed));
+	  w->data("prdata")->plotOn(mzframe, DataError(RooAbsData::SumW2));
 
 	  xaxis=nz->GetXaxis();
 	  nz->SetBinContent(xaxis->FindBin(i*0.1+0.05), w->var("fs")->getValV());
@@ -727,24 +960,37 @@ void myTree::Plot()
 	      w->import(*model);
 	      if (i==2)
 		{
-		  w->var("sigma")->setVal(0.01);
-		  w->var("sigma1")->setVal(0.4);
-		  w->var("c0")->setVal(-0.003);
+		  //w->var("sigma")->setVal(0.08);
+		  //w->var("sigma1")->setVal(0.1);
+		  w->var("sigma")->setRange(0.0, 0.05);
+		  w->var("sigma1")->setRange(0.02, 0.1);
+		  //w->var("c0")->setVal(-0.003);
 		  w->var("c0")->setRange(-1, 1);
-		  w->var("c1")->setVal(1);
+		  //w->var("c1")->setVal(1);
 		  w->var("c1")->setRange(-1, 3);
-		  w->var("fs")->setVal(7000);
+		  //w->var("fs")->setVal(20000);
 		  w->var("fs")->setMax(100000);
-		  w->var("fb")->setVal(100);
-		  w->var("fcb")->setVal(0.4);
+		  //w->var("fb")->setVal(1500);
+		  //w->var("fcb")->setVal(0.4);
 		  w->var("fcb")->setMin(0.3);
 		 }
+	      if (i==8)
+		{
+		  w->var("sigma")->setRange(0.0, 0.05);
+		  w->var("sigma1")->setRange(0.02, 0.1);
+		  w->var("c0")->setRange(-1, 1);
+		  w->var("c1")->setRange(-1, 3);
+		  w->var("fs")->setMax(10000);
+		  w->var("fcb")->setMin(0.3);
+		}
 	      w->data("nprdata")->plotOn(mzframe, DataError(RooAbsData::SumW2));
 	      w->pdf("model")->fitTo(*w->data("nprdata"),  Extended(!isMc), SumW2Error(kTRUE));
 	      //w->pdf("model")->plotOn(mzframe);
 	      w->pdf("model")->plotOn(mzframe, Name("background"), Components(RooArgSet(bkg)),DrawOption("F"), FillColor(kGray));
 	      w->pdf("model")->plotOn(mzframe, Name("signal"), Components(RooArgSet(masspeak)), LineStyle(kDashed));
 	      w->pdf("model")->plotOn(mzframe, Name("total"), LineColor(kRed));
+	      w->data("nprdata")->plotOn(mzframe, DataError(RooAbsData::SumW2));
+
 	      xaxis=np->GetXaxis();
 	      np->SetBinContent(xaxis->FindBin(i*0.1+0.05), w->var("fs")->getValV());
 	      np->SetBinError(xaxis->FindBin(i*0.1+0.05), w->var("fs")->getError());
@@ -891,7 +1137,7 @@ Double_t myTree::deltaR(TLorentzVector* GenMuon, TLorentzVector* RecoMuon)
   return ((double) TMath::Sqrt( (dEta*dEta) + (dPhi*dPhi) ) );
 };
 
-Bool_t myTree::isMatchedRecoDiMuon(int iRecoDiMuon, double maxDeltaR =0.03)
+Bool_t myTree::isMatchedRecoDiMuon(int iRecoDiMuon, double maxDeltaR)
 {
   TLorentzVector* RecoMuonpl = (TLorentzVector*) Reco_QQ_mupl_4mom->At(iRecoDiMuon);
   TLorentzVector* RecoMuonmi = (TLorentzVector*) Reco_QQ_mumi_4mom->At(iRecoDiMuon);
@@ -916,7 +1162,7 @@ Bool_t myTree::isMatchedRecoDiMuon(int iRecoDiMuon, double maxDeltaR =0.03)
 
 
 
-Bool_t myTree::isMatchedGenDiMuon(int iGenDiMuon, double maxDeltaR =0.03)
+Bool_t myTree::isMatchedGenDiMuon(int iGenDiMuon, double maxDeltaR)
 {
   TLorentzVector* GenMuonpl = (TLorentzVector*) Gen_QQ_mupl_4mom->At(iGenDiMuon);
   TLorentzVector* GenMuonmi = (TLorentzVector*) Gen_QQ_mumi_4mom->At(iGenDiMuon);
